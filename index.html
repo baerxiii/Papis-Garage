@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Garage Storage Organizer</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -16,34 +16,13 @@ body{
 }
 
 header{
+    background:#111827;
     padding:20px;
     text-align:center;
-    background:#111827;
 }
 
 h1{
-    margin:0 0 15px;
-}
-
-input, textarea{
-    width:100%;
-    padding:10px;
-    border:none;
-    border-radius:8px;
-    box-sizing:border-box;
-}
-
-button{
-    background:#2563eb;
-    color:white;
-    border:none;
-    padding:10px 16px;
-    border-radius:8px;
-    cursor:pointer;
-}
-
-button:hover{
-    background:#3b82f6;
+    margin-top:0;
 }
 
 .panel{
@@ -53,8 +32,35 @@ button:hover{
     border-radius:10px;
 }
 
+label{
+    display:block;
+    margin-bottom:15px;
+}
+
+input,
+textarea{
+    width:100%;
+    padding:10px;
+    border:none;
+    border-radius:8px;
+    box-sizing:border-box;
+}
+
+button{
+    padding:10px 20px;
+    background:#2563eb;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#3b82f6;
+}
+
 .shelf{
-    margin-bottom:25px;
+    margin:20px;
 }
 
 .shelf-title{
@@ -72,9 +78,9 @@ button:hover{
     min-height:90px;
     border-radius:10px;
     padding:10px;
-    cursor:pointer;
     text-align:center;
-    transition:0.2s;
+    cursor:pointer;
+    transition:.2s;
 }
 
 .bin:hover{
@@ -93,25 +99,22 @@ button:hover{
     display:none;
 }
 
-label{
-    display:block;
-    margin-bottom:15px;
-}
-
 #editor textarea{
     height:150px;
 }
 
 #status{
-    color:#9ca3af;
+    color:#d1d5db;
     margin-top:10px;
 }
 
 @media(max-width:700px){
+
     .bin{
         width:90px;
         min-height:75px;
     }
+
 }
 </style>
 </head>
@@ -132,12 +135,12 @@ label{
 
     <label>
         Total Bins
-        <input id="totalBins" type="number" min="1" max="500">
+        <input id="totalBins" type="number">
     </label>
 
     <label>
         Bins Per Shelf
-        <input id="binsPerShelf" type="number" min="1" max="50">
+        <input id="binsPerShelf" type="number">
     </label>
 
     <button id="saveLayout">
@@ -166,7 +169,7 @@ label{
         Save Bin
     </button>
 
-    <p id="status"></p>
+    <div id="status"></div>
 
 </div>
 
@@ -178,13 +181,11 @@ const SUPABASE_URL =
 const SUPABASE_KEY =
 "sb_publishable_wogqNQurYqmvOx9FvoFxMQ_XyRMTxZ_";
 
-const supabase =
+const db =
 window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
 );
-
-let currentBin = null;
 
 let settings = {
     totalBins: 42,
@@ -192,65 +193,63 @@ let settings = {
 };
 
 let bins = {};
+let currentBin = null;
 
-const shelves =
+const shelvesEl =
 document.getElementById("shelves");
 
 async function loadSettings(){
 
-    const { data } =
-    await supabase
-    .from("settings")
-    .select("*")
-    .eq("id",1)
-    .single();
+    try{
 
-    if(data){
+        const { data, error } =
+        await db
+        .from("settings")
+        .select("*")
+        .eq("id",1)
+        .single();
 
-        settings.totalBins =
-        data.total_bins;
+        if(error){
+            console.error(error);
+            return;
+        }
 
-        settings.binsPerShelf =
-        data.bins_per_shelf;
+        if(data){
+
+            settings.totalBins =
+            data.total_bins;
+
+            settings.binsPerShelf =
+            data.bins_per_shelf;
+        }
+
+        document.getElementById("totalBins").value =
+        settings.totalBins;
+
+        document.getElementById("binsPerShelf").value =
+        settings.binsPerShelf;
+
     }
-
-    document.getElementById("totalBins").value =
-    settings.totalBins;
-
-    document.getElementById("binsPerShelf").value =
-    settings.binsPerShelf;
-}
-
-async function saveSettings(){
-
-    await supabase
-    .from("settings")
-    .upsert({
-        id:1,
-        total_bins:
-            parseInt(
-                document.getElementById("totalBins").value
-            ),
-        bins_per_shelf:
-            parseInt(
-                document.getElementById("binsPerShelf").value
-            )
-    });
-
-    await loadSettings();
-    renderBins();
+    catch(err){
+        console.error(err);
+    }
 }
 
 async function loadBins(){
 
-    const { data } =
-    await supabase
-    .from("bins")
-    .select("*");
+    try{
 
-    bins = {};
+        const { data, error } =
+        await db
+        .from("bins")
+        .select("*");
 
-    if(data){
+        if(error){
+            console.error(error);
+            return;
+        }
+
+        bins = {};
 
         data.forEach(bin => {
 
@@ -261,42 +260,37 @@ async function loadBins(){
             };
 
         });
+
     }
+    catch(err){
+        console.error(err);
+    }
+
 }
 
 function renderBins(filter=""){
 
-    shelves.innerHTML = "";
+    shelvesEl.innerHTML = "";
 
     let shelfRow;
 
-    for(
-        let i=1;
-        i<=settings.totalBins;
-        i++
-    ){
+    for(let i=1;i<=settings.totalBins;i++){
 
-        if(
-            (i-1) %
-            settings.binsPerShelf === 0
-        ){
+        if((i - 1) % settings.binsPerShelf === 0){
 
             const shelf =
             document.createElement("div");
 
-            shelf.className =
-            "shelf";
+            shelf.className = "shelf";
 
-            const number =
+            const shelfNumber =
             Math.floor(
-                (i-1) /
+                (i - 1) /
                 settings.binsPerShelf
             ) + 1;
 
             shelf.innerHTML =
-            `<h2 class="shelf-title">
-                Shelf ${number}
-             </h2>`;
+            `<h2 class="shelf-title">Shelf ${shelfNumber}</h2>`;
 
             shelfRow =
             document.createElement("div");
@@ -306,14 +300,14 @@ function renderBins(filter=""){
 
             shelf.appendChild(shelfRow);
 
-            shelves.appendChild(shelf);
+            shelvesEl.appendChild(shelf);
         }
 
-        const id =
+        const binId =
         `BIN${String(i).padStart(2,"0")}`;
 
         const bin =
-        bins[id] || {
+        bins[binId] || {
             name:"",
             contents:""
         };
@@ -340,22 +334,22 @@ function renderBins(filter=""){
         card.className =
         "bin " +
         (
-            bin.contents
+            bin.contents.trim()
             ? "full"
             : "empty"
         );
 
         card.innerHTML =
         `
-        <strong>${id}</strong>
+        <strong>${binId}</strong>
         <br>
-        <small>
-            ${bin.name || "Empty"}
-        </small>
+        <small>${bin.name || "Empty"}</small>
         `;
 
-        card.onclick =
-        () => openBin(id);
+        card.addEventListener(
+            "click",
+            () => openBin(binId)
+        );
 
         shelfRow.appendChild(card);
     }
@@ -391,9 +385,9 @@ function openBin(id){
     .getElementById("status")
     .textContent =
     bin.updated_at
-    ? "Last Updated: " + new Date(
-        bin.updated_at
-      ).toLocaleString()
+    ? "Last Updated: " +
+      new Date(bin.updated_at)
+      .toLocaleString()
     : "Never Updated";
 }
 
@@ -401,31 +395,66 @@ async function saveCurrentBin(){
 
     if(!currentBin) return;
 
-    await supabase
+    const now =
+    new Date().toISOString();
+
+    const { error } =
+    await db
     .from("bins")
     .upsert({
         id: currentBin,
         name:
-            document
-            .getElementById("binName")
-            .value,
+            document.getElementById("binName").value,
         contents:
-            document
-            .getElementById("binContents")
-            .value,
-        updated_at:
-            new Date().toISOString()
+            document.getElementById("binContents").value,
+        updated_at: now
     });
+
+    if(error){
+        console.error(error);
+        alert(error.message);
+        return;
+    }
 
     await loadBins();
 
     renderBins(
-        document
-        .getElementById("search")
-        .value
+        document.getElementById("search").value
     );
 
+    document.getElementById("status").textContent =
+    "Last Updated: " +
+    new Date(now).toLocaleString();
+
     alert("Saved");
+}
+
+async function saveLayout(){
+
+    const { error } =
+    await db
+    .from("settings")
+    .upsert({
+        id: 1,
+        total_bins:
+            parseInt(
+                document.getElementById("totalBins").value
+            ),
+        bins_per_shelf:
+            parseInt(
+                document.getElementById("binsPerShelf").value
+            )
+    });
+
+    if(error){
+        console.error(error);
+        alert(error.message);
+        return;
+    }
+
+    await loadSettings();
+
+    renderBins();
 }
 
 document
@@ -439,7 +468,7 @@ document
 .getElementById("saveLayout")
 .addEventListener(
     "click",
-    saveSettings
+    saveLayout
 );
 
 document
@@ -449,15 +478,19 @@ document
     e => renderBins(e.target.value)
 );
 
-async function initialize(){
+async function init(){
+
+    console.log("Starting app...");
 
     await loadSettings();
     await loadBins();
 
     renderBins();
+
+    console.log("App loaded");
 }
 
-initialize();
+init().catch(console.error);
 
 </script>
 
