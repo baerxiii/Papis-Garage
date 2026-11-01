@@ -508,6 +508,12 @@ async function saveCurrentBin(){
         .toLocaleString();
 
     alert("Saved");
+
+    document
+.getElementById("modal")
+.classList
+.add("hidden");
+    
 }
 
 document
@@ -545,6 +551,32 @@ async function init(){
 
 init().catch(console.error);
 
+document
+.getElementById("closeModal")
+.addEventListener("click", () => {
+
+    document
+    .getElementById("modal")
+    .classList
+    .add("hidden");
+
+});
+
+    document
+.getElementById("modal")
+.addEventListener("click", (e) => {
+
+    if(e.target.id === "modal"){
+
+        document
+        .getElementById("modal")
+        .classList
+        .add("hidden");
+
+    }
+
+});
+    
 </script>
 
 </body>
