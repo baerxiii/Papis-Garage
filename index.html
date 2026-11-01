@@ -679,6 +679,109 @@ document
     }, 500);
 
 });
+
+document
+.getElementById("printAllLabels")
+.addEventListener("click", () => {
+
+    const printWindow =
+    window.open("", "_blank");
+
+    let html = `
+    <html>
+    <head>
+        <title>All Bin Labels</title>
+
+        <style>
+
+        body{
+            font-family:Arial,sans-serif;
+            padding:20px;
+        }
+
+        .label{
+            width:280px;
+            height:380px;
+
+            border:2px solid #000;
+
+            display:inline-flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+
+            margin:10px;
+
+            page-break-inside:avoid;
+        }
+
+        .bin-id{
+            font-size:28px;
+            font-weight:bold;
+            margin-bottom:10px;
+        }
+
+        .bin-name{
+            font-size:18px;
+            margin-bottom:15px;
+            text-align:center;
+        }
+
+        img{
+            width:180px;
+            height:180px;
+        }
+
+        </style>
+    </head>
+    <body>
+    `;
+
+    for(let i = 1; i <= settings.totalBins; i++){
+
+        const id =
+        `BIN${String(i).padStart(2,"0")}`;
+
+        const bin =
+        bins[id] || {};
+
+        const name =
+        bin.name || "Unnamed Bin";
+
+        const qrUrl =
+        `${window.location.origin}${window.location.pathname}?bin=${id}`;
+
+        html += `
+        <div class="label">
+
+            <div class="bin-id">
+                ${id}
+            </div>
+
+            <div class="bin-name">
+                ${name}
+            </div>
+
+            <img
+            src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}">
+
+        </div>
+        `;
+    }
+
+    html += `
+    </body>
+    </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+
+    setTimeout(() => {
+        printWindow.print();
+    }, 1000);
+
+});
     
 </script>
 
