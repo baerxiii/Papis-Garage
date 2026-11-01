@@ -564,17 +564,23 @@ async function saveCurrentBin(){
     const { error } =
     await db
         .from("bins")
-        .upsert({
-            id: currentBin,
-            name:
-                document.getElementById("binName").value,
-            contents:
-                    category;
-        document.getElementById("binCategory").value,
-                document.getElementById("binContents").value,
-            updated_at: now
-        });
 
+    .upsert({
+    id: currentBin,
+
+    name:
+        document.getElementById("binName").value,
+
+    category:
+        document.getElementById("binCategory").value,
+
+    contents:
+        document.getElementById("binContents").value,
+
+    updated_at: now
+});
+
+        
     if(error){
         console.error(error);
         alert(error.message);
