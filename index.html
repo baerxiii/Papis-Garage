@@ -2,14 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Garage Storage Organizer</title>
 
-<style>
-*{
-    box-sizing:border-box;
-}
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+<style>
 body{
     margin:0;
     font-family:Arial,sans-serif;
@@ -20,55 +18,27 @@ body{
 header{
     padding:20px;
     text-align:center;
+    background:#111827;
 }
 
-header h1{
-    margin-bottom:15px;
+h1{
+    margin:0 0 15px;
 }
 
-#search{
-    width:300px;
-    max-width:90%;
-    padding:10px;
-    border:none;
-    border-radius:8px;
-}
-
-#settingsPanel{
-    background:#374151;
-    margin:20px;
-    padding:20px;
-    border-radius:10px;
-}
-
-#settingsPanel h2{
-    margin-top:0;
-}
-
-#settingsPanel input{
-    width:100%;
-    margin-top:5px;
-}
-
-label{
-    display:block;
-    margin-bottom:15px;
-}
-
-input,
-textarea{
+input, textarea{
     width:100%;
     padding:10px;
     border:none;
     border-radius:8px;
+    box-sizing:border-box;
 }
 
 button{
-    padding:10px 20px;
-    border:none;
-    border-radius:8px;
     background:#2563eb;
     color:white;
+    border:none;
+    padding:10px 16px;
+    border-radius:8px;
     cursor:pointer;
 }
 
@@ -76,12 +46,18 @@ button:hover{
     background:#3b82f6;
 }
 
-#shelfContainer{
+.panel{
+    background:#374151;
+    margin:20px;
     padding:20px;
+    border-radius:10px;
+}
+
+.shelf{
+    margin-bottom:25px;
 }
 
 .shelf-title{
-    margin-top:25px;
     margin-bottom:10px;
 }
 
@@ -97,8 +73,8 @@ button:hover{
     border-radius:10px;
     padding:10px;
     cursor:pointer;
-    transition:.2s;
     text-align:center;
+    transition:0.2s;
 }
 
 .bin:hover{
@@ -113,44 +89,29 @@ button:hover{
     background:#16a34a;
 }
 
-.bin-id{
-    font-weight:bold;
-}
-
-.bin-name{
-    margin-top:8px;
-    font-size:12px;
-}
-
-#editor{
-    margin:20px;
-    padding:20px;
-    background:#374151;
-    border-radius:10px;
-}
-
 .hidden{
     display:none;
 }
 
-textarea{
-    height:150px;
-    resize:vertical;
+label{
+    display:block;
+    margin-bottom:15px;
 }
 
-#updated{
-    color:#d1d5db;
-    font-size:.9rem;
+#editor textarea{
+    height:150px;
+}
+
+#status{
+    color:#9ca3af;
+    margin-top:10px;
 }
 
 @media(max-width:700px){
-
     .bin{
         width:90px;
         min-height:75px;
-        font-size:.85rem;
     }
-
 }
 </style>
 </head>
@@ -160,51 +121,40 @@ textarea{
     <h1>Garage Storage Organizer</h1>
 
     <input
-        type="text"
         id="search"
         placeholder="Search bins..."
     >
 </header>
 
-<div id="settingsPanel">
+<div class="panel">
 
-    <h2>Layout Settings</h2>
+    <h2>Shelf Settings</h2>
 
     <label>
         Total Bins
-        <input
-            type="number"
-            id="totalBins"
-            min="1"
-            max="500"
-        >
+        <input id="totalBins" type="number" min="1" max="500">
     </label>
 
     <label>
         Bins Per Shelf
-        <input
-            type="number"
-            id="binsPerShelf"
-            min="1"
-            max="20"
-        >
+        <input id="binsPerShelf" type="number" min="1" max="50">
     </label>
 
-    <button id="updateLayoutBtn">
-        Update Layout
+    <button id="saveLayout">
+        Save Layout
     </button>
 
 </div>
 
-<div id="shelfContainer"></div>
+<div id="shelves"></div>
 
-<div id="editor" class="hidden">
+<div id="editor" class="panel hidden">
 
     <h2 id="binTitle"></h2>
 
     <label>
         Bin Name
-        <input type="text" id="binName">
+        <input id="binName">
     </label>
 
     <label>
@@ -212,89 +162,141 @@ textarea{
         <textarea id="binContents"></textarea>
     </label>
 
-    <p id="updated"></p>
-
-    <button id="saveBtn">
+    <button id="saveBin">
         Save Bin
     </button>
+
+    <p id="status"></p>
 
 </div>
 
 <script>
 
-let storageData =
-JSON.parse(localStorage.getItem("storageData"))
-||
-{
-    settings:{
-        totalBins:42,
-        binsPerShelf:6
-    },
-    bins:{}
-};
+const SUPABASE_URL =
+"https://cujvvxyadxvlfvhgzlki.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_wogqNQurYqmvOx9FvoFxMQ_XyRMTxZ_";
+
+const supabase =
+window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
 
 let currentBin = null;
 
-const shelfContainer =
-document.getElementById("shelfContainer");
+let settings = {
+    totalBins: 42,
+    binsPerShelf: 6
+};
 
-const editor =
-document.getElementById("editor");
+let bins = {};
 
-const binTitle =
-document.getElementById("binTitle");
+const shelves =
+document.getElementById("shelves");
 
-const binName =
-document.getElementById("binName");
+async function loadSettings(){
 
-const binContents =
-document.getElementById("binContents");
+    const { data } =
+    await supabase
+    .from("settings")
+    .select("*")
+    .eq("id",1)
+    .single();
 
-const updated =
-document.getElementById("updated");
+    if(data){
 
-document.getElementById("totalBins").value =
-storageData.settings.totalBins;
+        settings.totalBins =
+        data.total_bins;
 
-document.getElementById("binsPerShelf").value =
-storageData.settings.binsPerShelf;
+        settings.binsPerShelf =
+        data.bins_per_shelf;
+    }
 
-function saveStorage(){
-    localStorage.setItem(
-        "storageData",
-        JSON.stringify(storageData)
-    );
+    document.getElementById("totalBins").value =
+    settings.totalBins;
+
+    document.getElementById("binsPerShelf").value =
+    settings.binsPerShelf;
+}
+
+async function saveSettings(){
+
+    await supabase
+    .from("settings")
+    .upsert({
+        id:1,
+        total_bins:
+            parseInt(
+                document.getElementById("totalBins").value
+            ),
+        bins_per_shelf:
+            parseInt(
+                document.getElementById("binsPerShelf").value
+            )
+    });
+
+    await loadSettings();
+    renderBins();
+}
+
+async function loadBins(){
+
+    const { data } =
+    await supabase
+    .from("bins")
+    .select("*");
+
+    bins = {};
+
+    if(data){
+
+        data.forEach(bin => {
+
+            bins[bin.id] = {
+                name: bin.name || "",
+                contents: bin.contents || "",
+                updated_at: bin.updated_at || ""
+            };
+
+        });
+    }
 }
 
 function renderBins(filter=""){
 
-    shelfContainer.innerHTML = "";
-
-    const totalBins =
-    storageData.settings.totalBins;
-
-    const binsPerShelf =
-    storageData.settings.binsPerShelf;
+    shelves.innerHTML = "";
 
     let shelfRow;
 
-    for(let i=1;i<=totalBins;i++){
+    for(
+        let i=1;
+        i<=settings.totalBins;
+        i++
+    ){
 
-        if((i-1)%binsPerShelf===0){
+        if(
+            (i-1) %
+            settings.binsPerShelf === 0
+        ){
 
-            const shelfNum =
-            Math.floor((i-1)/binsPerShelf)+1;
+            const shelf =
+            document.createElement("div");
 
-            const title =
-            document.createElement("h2");
+            shelf.className =
+            "shelf";
 
-            title.className =
-            "shelf-title";
+            const number =
+            Math.floor(
+                (i-1) /
+                settings.binsPerShelf
+            ) + 1;
 
-            title.textContent =
-            "Shelf " + shelfNum;
-
-            shelfContainer.appendChild(title);
+            shelf.innerHTML =
+            `<h2 class="shelf-title">
+                Shelf ${number}
+             </h2>`;
 
             shelfRow =
             document.createElement("div");
@@ -302,25 +304,21 @@ function renderBins(filter=""){
             shelfRow.className =
             "shelf-row";
 
-            shelfContainer.appendChild(shelfRow);
+            shelf.appendChild(shelfRow);
+
+            shelves.appendChild(shelf);
         }
 
         const id =
         `BIN${String(i).padStart(2,"0")}`;
 
-        if(!storageData.bins[id]){
-
-            storageData.bins[id]={
-                name:"",
-                contents:"",
-                updated:""
-            };
-        }
-
         const bin =
-        storageData.bins[id];
+        bins[id] || {
+            name:"",
+            contents:""
+        };
 
-        const searchable =
+        const searchText =
         (
             bin.name +
             " " +
@@ -329,76 +327,97 @@ function renderBins(filter=""){
 
         if(
             filter &&
-            !searchable.includes(
+            !searchText.includes(
                 filter.toLowerCase()
             )
         ){
             continue;
         }
 
-        const div =
+        const card =
         document.createElement("div");
 
-        div.className =
+        card.className =
         "bin " +
-        (bin.contents.trim()
-        ? "full"
-        : "empty");
+        (
+            bin.contents
+            ? "full"
+            : "empty"
+        );
 
-        div.innerHTML =
+        card.innerHTML =
         `
-        <div class="bin-id">
-            ${id}
-        </div>
-
-        <div class="bin-name">
+        <strong>${id}</strong>
+        <br>
+        <small>
             ${bin.name || "Empty"}
-        </div>
+        </small>
         `;
 
-        div.onclick =
-        ()=>openBin(id);
+        card.onclick =
+        () => openBin(id);
 
-        shelfRow.appendChild(div);
+        shelfRow.appendChild(card);
     }
 }
 
 function openBin(id){
 
-    currentBin=id;
+    currentBin = id;
 
     const bin =
-    storageData.bins[id];
+    bins[id] || {};
 
-    editor.classList.remove("hidden");
+    document
+    .getElementById("editor")
+    .classList
+    .remove("hidden");
 
-    binTitle.textContent=id;
+    document
+    .getElementById("binTitle")
+    .textContent = id;
 
-    binName.value =
+    document
+    .getElementById("binName")
+    .value =
     bin.name || "";
 
-    binContents.value =
+    document
+    .getElementById("binContents")
+    .value =
     bin.contents || "";
 
-    updated.textContent =
-    bin.updated
-    ?
-    "Last Updated: " + bin.updated
-    :
-    "Never Updated";
+    document
+    .getElementById("status")
+    .textContent =
+    bin.updated_at
+    ? "Last Updated: " + new Date(
+        bin.updated_at
+      ).toLocaleString()
+    : "Never Updated";
 }
 
-document
-.getElementById("saveBtn")
-.addEventListener("click",()=>{
+async function saveCurrentBin(){
 
-    storageData.bins[currentBin]={
-        name:binName.value,
-        contents:binContents.value,
-        updated:new Date().toLocaleString()
-    };
+    if(!currentBin) return;
 
-    saveStorage();
+    await supabase
+    .from("bins")
+    .upsert({
+        id: currentBin,
+        name:
+            document
+            .getElementById("binName")
+            .value,
+        contents:
+            document
+            .getElementById("binContents")
+            .value,
+        updated_at:
+            new Date().toISOString()
+    });
+
+    await loadBins();
 
     renderBins(
         document
@@ -406,49 +425,39 @@ document
         .value
     );
 
-    updated.textContent =
-    "Last Updated: " +
-    storageData.bins[currentBin]
-    .updated;
-
-    alert("Bin Saved");
-});
+    alert("Saved");
+}
 
 document
-.getElementById(
-    "updateLayoutBtn"
-)
-.addEventListener("click",()=>{
+.getElementById("saveBin")
+.addEventListener(
+    "click",
+    saveCurrentBin
+);
 
-    storageData.settings.totalBins =
-    parseInt(
-        document
-        .getElementById("totalBins")
-        .value
-    );
-
-    storageData.settings.binsPerShelf =
-    parseInt(
-        document
-        .getElementById("binsPerShelf")
-        .value
-    );
-
-    saveStorage();
-    renderBins();
-});
+document
+.getElementById("saveLayout")
+.addEventListener(
+    "click",
+    saveSettings
+);
 
 document
 .getElementById("search")
-.addEventListener("input",(e)=>{
+.addEventListener(
+    "input",
+    e => renderBins(e.target.value)
+);
 
-    renderBins(
-        e.target.value
-    );
+async function initialize(){
 
-});
+    await loadSettings();
+    await loadBins();
 
-renderBins();
+    renderBins();
+}
+
+initialize();
 
 </script>
 
