@@ -22,7 +22,7 @@ header{
 }
 
 h1{
-    margin-top:0;
+    margin:0 0 15px;
 }
 
 .panel{
@@ -47,10 +47,10 @@ textarea{
 }
 
 button{
-    padding:10px 20px;
     background:#2563eb;
     color:white;
     border:none;
+    padding:10px 16px;
     border-radius:8px;
     cursor:pointer;
 }
@@ -135,12 +135,12 @@ button:hover{
 
     <label>
         Total Bins
-        <input id="totalBins" type="number">
+        <input id="totalBins" type="number" min="1" max="500">
     </label>
 
     <label>
         Bins Per Shelf
-        <input id="binsPerShelf" type="number">
+        <input id="binsPerShelf" type="number" min="1" max="50">
     </label>
 
     <button id="saveLayout">
@@ -181,8 +181,7 @@ const SUPABASE_URL =
 const SUPABASE_KEY =
 "sb_publishable_wogqNQurYqmvOx9FvoFxMQ_XyRMTxZ_";
 
-const db =
-window.supabase.createClient(
+const db = window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
 );
@@ -200,72 +199,89 @@ document.getElementById("shelves");
 
 async function loadSettings(){
 
-    try{
-
-        const { data, error } =
-        await db
+    const { data, error } = await db
         .from("settings")
         .select("*")
         .eq("id",1)
-        .single();
+        .maybeSingle();
 
-        if(error){
-            console.error(error);
-            return;
-        }
+    if(error){
+        console.error(error);
+    }
 
-        if(data){
+    if(data){
+        settings.totalBins =
+            data.total_bins ?? 42;
 
-            settings.totalBins =
-            data.total_bins;
+        settings.binsPerShelf =
+            data.bins_per_shelf ?? 6;
+    }
+    else{
+        settings.totalBins = 42;
+        settings.binsPerShelf = 6;
+    }
 
-            settings.binsPerShelf =
-            data.bins_per_shelf;
-        }
-
-        document.getElementById("totalBins").value =
+    document.getElementById("totalBins").value =
         settings.totalBins;
 
-        document.getElementById("binsPerShelf").value =
+    document.getElementById("binsPerShelf").value =
         settings.binsPerShelf;
+}
 
+async function saveLayout(){
+
+    settings.totalBins =
+        parseInt(
+            document.getElementById("totalBins").value
+        ) || 42;
+
+    settings.binsPerShelf =
+        parseInt(
+            document.getElementById("binsPerShelf").value
+        ) || 6;
+
+    const { error } =
+    await db
+        .from("settings")
+        .upsert({
+            id: 1,
+            total_bins: settings.totalBins,
+            bins_per_shelf: settings.binsPerShelf
+        });
+
+    if(error){
+        console.error(error);
+        alert(error.message);
+        return;
     }
-    catch(err){
-        console.error(err);
-    }
+
+    renderBins();
+    alert("Layout Saved");
 }
 
 async function loadBins(){
 
-    try{
-
-        const { data, error } =
-        await db
+    const { data, error } =
+    await db
         .from("bins")
         .select("*");
 
-        if(error){
-            console.error(error);
-            return;
-        }
-
-        bins = {};
-
-        data.forEach(bin => {
-
-            bins[bin.id] = {
-                name: bin.name || "",
-                contents: bin.contents || "",
-                updated_at: bin.updated_at || ""
-            };
-
-        });
-
-    }
-    catch(err){
-        console.error(err);
+    if(error){
+        console.error(error);
+        return;
     }
 
+    bins = {};
+
+    (data || []).forEach(bin => {
+
+        bins[bin.id] = {
+            name: bin.name || "",
+            contents: bin.contents || "",
+            updated_at: bin.updated_at || ""
+        };
+
+    });
 }
 
 function renderBins(filter=""){
@@ -274,9 +290,9 @@ function renderBins(filter=""){
 
     let shelfRow;
 
-    for(let i=1;i<=settings.totalBins;i++){
+    for(let i=1; i<=settings.totalBins; i++){
 
-        if((i - 1) % settings.binsPerShelf === 0){
+        if((i-1) % settings.binsPerShelf === 0){
 
             const shelf =
             document.createElement("div");
@@ -285,18 +301,19 @@ function renderBins(filter=""){
 
             const shelfNumber =
             Math.floor(
-                (i - 1) /
-                settings.binsPerShelf
+                (i-1) / settings.binsPerShelf
             ) + 1;
 
             shelf.innerHTML =
-            `<h2 class="shelf-title">Shelf ${shelfNumber}</h2>`;
+            `<h2 class="shelf-title">
+                Shelf ${shelfNumber}
+             </h2>`;
 
             shelfRow =
             document.createElement("div");
 
             shelfRow.className =
-            "shelf-row";
+                "shelf-row";
 
             shelf.appendChild(shelfRow);
 
@@ -314,9 +331,9 @@ function renderBins(filter=""){
 
         const searchText =
         (
-            bin.name +
+            (bin.name || "") +
             " " +
-            bin.contents
+            (bin.contents || "")
         ).toLowerCase();
 
         if(
@@ -339,11 +356,10 @@ function renderBins(filter=""){
             : "empty"
         );
 
-        card.innerHTML =
-        `
-        <strong>${binId}</strong>
-        <br>
-        <small>${bin.name || "Empty"}</small>
+        card.innerHTML = `
+            <strong>${binId}</strong>
+            <br>
+            <small>${bin.name || "Empty"}</small>
         `;
 
         card.addEventListener(
@@ -363,32 +379,27 @@ function openBin(id){
     bins[id] || {};
 
     document
-    .getElementById("editor")
-    .classList
-    .remove("hidden");
+        .getElementById("editor")
+        .classList
+        .remove("hidden");
 
-    document
-    .getElementById("binTitle")
-    .textContent = id;
+    document.getElementById("binTitle")
+        .textContent = id;
 
-    document
-    .getElementById("binName")
-    .value =
-    bin.name || "";
+    document.getElementById("binName")
+        .value = bin.name || "";
 
-    document
-    .getElementById("binContents")
-    .value =
-    bin.contents || "";
+    document.getElementById("binContents")
+        .value = bin.contents || "";
 
-    document
-    .getElementById("status")
-    .textContent =
-    bin.updated_at
-    ? "Last Updated: " +
-      new Date(bin.updated_at)
-      .toLocaleString()
-    : "Never Updated";
+    document.getElementById("status")
+        .textContent =
+            bin.updated_at
+            ? "Last Updated: " +
+              new Date(
+                bin.updated_at
+              ).toLocaleString()
+            : "Never Updated";
 }
 
 async function saveCurrentBin(){
@@ -400,15 +411,15 @@ async function saveCurrentBin(){
 
     const { error } =
     await db
-    .from("bins")
-    .upsert({
-        id: currentBin,
-        name:
-            document.getElementById("binName").value,
-        contents:
-            document.getElementById("binContents").value,
-        updated_at: now
-    });
+        .from("bins")
+        .upsert({
+            id: currentBin,
+            name:
+                document.getElementById("binName").value,
+            contents:
+                document.getElementById("binContents").value,
+            updated_at: now
+        });
 
     if(error){
         console.error(error);
@@ -422,53 +433,27 @@ async function saveCurrentBin(){
         document.getElementById("search").value
     );
 
-    document.getElementById("status").textContent =
-    "Last Updated: " +
-    new Date(now).toLocaleString();
+    document.getElementById("status")
+        .textContent =
+        "Last Updated: " +
+        new Date(now)
+        .toLocaleString();
 
     alert("Saved");
 }
-
-async function saveLayout(){
-
-    const { error } =
-    await db
-    .from("settings")
-    .upsert({
-        id: 1,
-        total_bins:
-            parseInt(
-                document.getElementById("totalBins").value
-            ),
-        bins_per_shelf:
-            parseInt(
-                document.getElementById("binsPerShelf").value
-            )
-    });
-
-    if(error){
-        console.error(error);
-        alert(error.message);
-        return;
-    }
-
-    await loadSettings();
-
-    renderBins();
-}
-
-document
-.getElementById("saveBin")
-.addEventListener(
-    "click",
-    saveCurrentBin
-);
 
 document
 .getElementById("saveLayout")
 .addEventListener(
     "click",
     saveLayout
+);
+
+document
+.getElementById("saveBin")
+.addEventListener(
+    "click",
+    saveCurrentBin
 );
 
 document
