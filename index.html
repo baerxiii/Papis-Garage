@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shelving Organizer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>Garage Storage Organizer</h1>
+
+        <input
+            type="text"
+            id="search"
+            placeholder="Search contents..."
+        >
+    </header>
+
+    <main>
+
+        <div id="shelfGrid"></div>
+
+        <div id="editor" class="hidden">
+            <h2 id="binTitle">Bin</h2>
+
+            <label>
+                Bin Name
+                <input type="text" id="binName">
+            </label>
+
+            <label>
+                Contents
+                <textarea id="binContents"></textarea>
+            </label>
+
+            <p id="updated"></p>
+
+            <button id="saveBtn">Save</button>
+        </div>
+
+    </main>
+
+    <script src="app.js"></script>
+
+</body>
+</html>
