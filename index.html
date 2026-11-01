@@ -6,7 +6,6 @@
 <title>Garage Storage Organizer</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
@@ -232,12 +231,28 @@ button:hover{
             Contents
             <textarea id="binContents"></textarea>
         </label>
+        
+<button id="saveBin">
+    Save Bin
+</button>
 
-        <button id="saveBin">
-            Save Bin
-        </button>
+<hr>
 
-        <div id="status"></div>
+<h3>QR Code</h3>
+
+<div id="qrcode"></div>
+
+<br>
+
+<button id="printLabel">
+    Print This Label
+</button>
+
+<button id="printAllLabels">
+    Print All Labels
+</button>
+
+<div id="status"></div>
 
     </div>
 
@@ -470,6 +485,20 @@ function openBin(id){
                 bin.updated_at
               ).toLocaleString()
             : "Never Updated";
+
+    const qrDiv =
+document.getElementById("qrcode");
+
+qrDiv.innerHTML = "";
+
+const qrUrl =
+`${window.location.origin}${window.location.pathname}?bin=${id}`;
+
+new QRCode(qrDiv,{
+    text: qrUrl,
+    width: 200,
+    height: 200
+});
 }
 
 async function saveCurrentBin(){
@@ -548,6 +577,21 @@ async function init(){
 
     renderBins();
 
+    const params =
+new URLSearchParams(window.location.search);
+
+const binFromQr =
+params.get("bin");
+
+if(binFromQr){
+
+    setTimeout(() => {
+
+        openBin(binFromQr);
+
+    }, 500);
+}
+
     console.log("App loaded");
 }
 
@@ -576,6 +620,63 @@ document
         .add("hidden");
 
     }
+
+});
+
+    document
+.getElementById("printLabel")
+.addEventListener("click", () => {
+
+    const canvas =
+    document.querySelector("#qrcode canvas");
+
+    if(!canvas){
+        alert("QR Code not ready");
+        return;
+    }
+
+    const qrImage =
+    canvas.toDataURL();
+
+    const binName =
+    document.getElementById("binName").value ||
+    "Unnamed Bin";
+
+    const printWindow =
+    window.open("", "_blank");
+
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>${currentBin}</title>
+            <style>
+                body{
+                    text-align:center;
+                    font-family:Arial;
+                    padding:30px;
+                }
+                img{
+                    width:250px;
+                }
+            </style>
+        </head>
+        <body>
+
+            <h1>${currentBin}</h1>
+
+            <h2>${binName}</h2>
+
+            ${qrImage}
+
+        </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+
+    setTimeout(() => {
+        printWindow.print();
+    }, 500);
 
 });
     
