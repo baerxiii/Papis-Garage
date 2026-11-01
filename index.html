@@ -675,8 +675,9 @@ document
     printWindow.document.close();
 
     setTimeout(() => {
+        printWindow.focus();
         printWindow.print();
-    }, 500);
+    }, 5000);
 
 });
 
