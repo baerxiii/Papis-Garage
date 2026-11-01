@@ -1,48 +1,456 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shelving Organizer</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garage Storage Organizer</title>
+
+<style>
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    font-family:Arial,sans-serif;
+    background:#1f2937;
+    color:white;
+}
+
+header{
+    padding:20px;
+    text-align:center;
+}
+
+header h1{
+    margin-bottom:15px;
+}
+
+#search{
+    width:300px;
+    max-width:90%;
+    padding:10px;
+    border:none;
+    border-radius:8px;
+}
+
+#settingsPanel{
+    background:#374151;
+    margin:20px;
+    padding:20px;
+    border-radius:10px;
+}
+
+#settingsPanel h2{
+    margin-top:0;
+}
+
+#settingsPanel input{
+    width:100%;
+    margin-top:5px;
+}
+
+label{
+    display:block;
+    margin-bottom:15px;
+}
+
+input,
+textarea{
+    width:100%;
+    padding:10px;
+    border:none;
+    border-radius:8px;
+}
+
+button{
+    padding:10px 20px;
+    border:none;
+    border-radius:8px;
+    background:#2563eb;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#3b82f6;
+}
+
+#shelfContainer{
+    padding:20px;
+}
+
+.shelf-title{
+    margin-top:25px;
+    margin-bottom:10px;
+}
+
+.shelf-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+}
+
+.bin{
+    width:120px;
+    min-height:90px;
+    border-radius:10px;
+    padding:10px;
+    cursor:pointer;
+    transition:.2s;
+    text-align:center;
+}
+
+.bin:hover{
+    transform:scale(1.05);
+}
+
+.empty{
+    background:#6b7280;
+}
+
+.full{
+    background:#16a34a;
+}
+
+.bin-id{
+    font-weight:bold;
+}
+
+.bin-name{
+    margin-top:8px;
+    font-size:12px;
+}
+
+#editor{
+    margin:20px;
+    padding:20px;
+    background:#374151;
+    border-radius:10px;
+}
+
+.hidden{
+    display:none;
+}
+
+textarea{
+    height:150px;
+    resize:vertical;
+}
+
+#updated{
+    color:#d1d5db;
+    font-size:.9rem;
+}
+
+@media(max-width:700px){
+
+    .bin{
+        width:90px;
+        min-height:75px;
+        font-size:.85rem;
+    }
+
+}
+</style>
 </head>
 <body>
 
-    <header>
-        <h1>Garage Storage Organizer</h1>
+<header>
+    <h1>Garage Storage Organizer</h1>
 
+    <input
+        type="text"
+        id="search"
+        placeholder="Search bins..."
+    >
+</header>
+
+<div id="settingsPanel">
+
+    <h2>Layout Settings</h2>
+
+    <label>
+        Total Bins
         <input
-            type="text"
-            id="search"
-            placeholder="Search contents..."
+            type="number"
+            id="totalBins"
+            min="1"
+            max="500"
         >
-    </header>
+    </label>
 
-    <main>
+    <label>
+        Bins Per Shelf
+        <input
+            type="number"
+            id="binsPerShelf"
+            min="1"
+            max="20"
+        >
+    </label>
 
-        <div id="shelfGrid"></div>
+    <button id="updateLayoutBtn">
+        Update Layout
+    </button>
 
-        <div id="editor" class="hidden">
-            <h2 id="binTitle">Bin</h2>
+</div>
 
-            <label>
-                Bin Name
-                <input type="text" id="binName">
-            </label>
+<div id="shelfContainer"></div>
 
-            <label>
-                Contents
-                <textarea id="binContents"></textarea>
-            </label>
+<div id="editor" class="hidden">
 
-            <p id="updated"></p>
+    <h2 id="binTitle"></h2>
 
-            <button id="saveBtn">Save</button>
+    <label>
+        Bin Name
+        <input type="text" id="binName">
+    </label>
+
+    <label>
+        Contents
+        <textarea id="binContents"></textarea>
+    </label>
+
+    <p id="updated"></p>
+
+    <button id="saveBtn">
+        Save Bin
+    </button>
+
+</div>
+
+<script>
+
+let storageData =
+JSON.parse(localStorage.getItem("storageData"))
+||
+{
+    settings:{
+        totalBins:42,
+        binsPerShelf:6
+    },
+    bins:{}
+};
+
+let currentBin = null;
+
+const shelfContainer =
+document.getElementById("shelfContainer");
+
+const editor =
+document.getElementById("editor");
+
+const binTitle =
+document.getElementById("binTitle");
+
+const binName =
+document.getElementById("binName");
+
+const binContents =
+document.getElementById("binContents");
+
+const updated =
+document.getElementById("updated");
+
+document.getElementById("totalBins").value =
+storageData.settings.totalBins;
+
+document.getElementById("binsPerShelf").value =
+storageData.settings.binsPerShelf;
+
+function saveStorage(){
+    localStorage.setItem(
+        "storageData",
+        JSON.stringify(storageData)
+    );
+}
+
+function renderBins(filter=""){
+
+    shelfContainer.innerHTML = "";
+
+    const totalBins =
+    storageData.settings.totalBins;
+
+    const binsPerShelf =
+    storageData.settings.binsPerShelf;
+
+    let shelfRow;
+
+    for(let i=1;i<=totalBins;i++){
+
+        if((i-1)%binsPerShelf===0){
+
+            const shelfNum =
+            Math.floor((i-1)/binsPerShelf)+1;
+
+            const title =
+            document.createElement("h2");
+
+            title.className =
+            "shelf-title";
+
+            title.textContent =
+            "Shelf " + shelfNum;
+
+            shelfContainer.appendChild(title);
+
+            shelfRow =
+            document.createElement("div");
+
+            shelfRow.className =
+            "shelf-row";
+
+            shelfContainer.appendChild(shelfRow);
+        }
+
+        const id =
+        `BIN${String(i).padStart(2,"0")}`;
+
+        if(!storageData.bins[id]){
+
+            storageData.bins[id]={
+                name:"",
+                contents:"",
+                updated:""
+            };
+        }
+
+        const bin =
+        storageData.bins[id];
+
+        const searchable =
+        (
+            bin.name +
+            " " +
+            bin.contents
+        ).toLowerCase();
+
+        if(
+            filter &&
+            !searchable.includes(
+                filter.toLowerCase()
+            )
+        ){
+            continue;
+        }
+
+        const div =
+        document.createElement("div");
+
+        div.className =
+        "bin " +
+        (bin.contents.trim()
+        ? "full"
+        : "empty");
+
+        div.innerHTML =
+        `
+        <div class="bin-id">
+            ${id}
         </div>
 
-    </main>
+        <div class="bin-name">
+            ${bin.name || "Empty"}
+        </div>
+        `;
 
-    <script src="app.js"></script>
+        div.onclick =
+        ()=>openBin(id);
+
+        shelfRow.appendChild(div);
+    }
+}
+
+function openBin(id){
+
+    currentBin=id;
+
+    const bin =
+    storageData.bins[id];
+
+    editor.classList.remove("hidden");
+
+    binTitle.textContent=id;
+
+    binName.value =
+    bin.name || "";
+
+    binContents.value =
+    bin.contents || "";
+
+    updated.textContent =
+    bin.updated
+    ?
+    "Last Updated: " + bin.updated
+    :
+    "Never Updated";
+}
+
+document
+.getElementById("saveBtn")
+.addEventListener("click",()=>{
+
+    storageData.bins[currentBin]={
+        name:binName.value,
+        contents:binContents.value,
+        updated:new Date().toLocaleString()
+    };
+
+    saveStorage();
+
+    renderBins(
+        document
+        .getElementById("search")
+        .value
+    );
+
+    updated.textContent =
+    "Last Updated: " +
+    storageData.bins[currentBin]
+    .updated;
+
+    alert("Bin Saved");
+});
+
+document
+.getElementById(
+    "updateLayoutBtn"
+)
+.addEventListener("click",()=>{
+
+    storageData.settings.totalBins =
+    parseInt(
+        document
+        .getElementById("totalBins")
+        .value
+    );
+
+    storageData.settings.binsPerShelf =
+    parseInt(
+        document
+        .getElementById("binsPerShelf")
+        .value
+    );
+
+    saveStorage();
+    renderBins();
+});
+
+document
+.getElementById("search")
+.addEventListener("input",(e)=>{
+
+    renderBins(
+        e.target.value
+    );
+
+});
+
+renderBins();
+
+</script>
 
 </body>
 </html>
