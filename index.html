@@ -116,6 +116,66 @@ button:hover{
     }
 
 }
+
+.modal{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.7);
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    z-index:1000;
+}
+
+.modal-content{
+
+    background:#374151;
+
+    width:90%;
+    max-width:700px;
+
+    padding:25px;
+
+    border-radius:12px;
+
+    position:relative;
+}
+
+.close-btn{
+
+    position:absolute;
+
+    top:10px;
+    right:10px;
+
+    width:40px;
+    height:40px;
+
+    background:#dc2626;
+
+    border:none;
+
+    border-radius:50%;
+
+    color:white;
+
+    cursor:pointer;
+}
+
+.close-btn:hover{
+    background:#ef4444;
+}
+
+.hidden{
+    display:none;
+}
+
+.modal textarea{
+    height:200px;
+}
+    
 </style>
 </head>
 <body>
@@ -151,25 +211,33 @@ button:hover{
 
 <div id="shelves"></div>
 
-<div id="editor" class="panel hidden">
+<div id="modal" class="modal hidden">
 
-    <h2 id="binTitle"></h2>
+    <div class="modal-content">
 
-    <label>
-        Bin Name
-        <input id="binName">
-    </label>
+        <button id="closeModal" class="close-btn">
+            ✕
+        </button>
 
-    <label>
-        Contents
-        <textarea id="binContents"></textarea>
-    </label>
+        <h2 id="binTitle"></h2>
 
-    <button id="saveBin">
-        Save Bin
-    </button>
+        <label>
+            Bin Name
+            <input id="binName">
+        </label>
 
-    <div id="status"></div>
+        <label>
+            Contents
+            <textarea id="binContents"></textarea>
+        </label>
+
+        <button id="saveBin">
+            Save Bin
+        </button>
+
+        <div id="status"></div>
+
+    </div>
 
 </div>
 
@@ -379,7 +447,7 @@ function openBin(id){
     bins[id] || {};
 
     document
-        .getElementById("editor")
+        .getElementById("modal")
         .classList
         .remove("hidden");
 
