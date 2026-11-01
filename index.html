@@ -483,19 +483,18 @@ function renderBins(filter=""){
         const card =
         document.createElement("div");
 
-        card.className =
-        "bin " +
-        (
-            bin.contents.trim()
-            ? "full"
-            : "empty"
-        );
+        card.className = "bin";
+
+card.style.backgroundColor =
+getCategoryColor(bin.category);
 
         card.innerHTML = `
-            <strong>${binId}</strong>
-            <br>
-            <small>${bin.name || "Empty"}</small>
-        `;
+    <strong>${binId}</strong>
+    <br>
+    <small>${bin.name || "Empty"}</small>
+    <br>
+    <small>${bin.category || ""}</small>
+`;
 
         card.addEventListener(
             "click",
