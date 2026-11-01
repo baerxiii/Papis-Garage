@@ -39,7 +39,8 @@ label{
 }
 
 input,
-textarea{
+textarea,
+    select{
     width:100%;
     padding:10px;
     border:none;
@@ -223,14 +224,29 @@ button:hover{
         <h2 id="binTitle"></h2>
 
         <label>
-            Bin Name
-            <input id="binName">
-        </label>
+    Bin Name
+    <input id="binName">
+</label>
 
-        <label>
-            Contents
-            <textarea id="binContents"></textarea>
-        </label>
+<label>
+    Category
+    <select id="binCategory">
+        <option value="">Select Category</option>
+        <option value="Tools">Tools</option>
+        <option value="Camping">Camping</option>
+        <option value="Christmas">Christmas</option>
+        <option value="Halloween">Halloween</option>
+        <option value="Automotive">Automotive</option>
+        <option value="Hardware">Hardware</option>
+        <option value="Electronics">Electronics</option>
+        <option value="Household">Household</option>
+    </select>
+</label>
+
+<label>
+    Contents
+    <textarea id="binContents"></textarea>
+</label>
         
 <button id="saveBin">
     Save Bin
@@ -278,6 +294,39 @@ let settings = {
 
 let bins = {};
 let currentBin = null;
+
+    function getCategoryColor(category){
+
+    switch(category){
+
+        case "Tools":
+            return "#2563eb";
+
+        case "Camping":
+            return "#16a34a";
+
+        case "Christmas":
+            return "#dc2626";
+
+        case "Halloween":
+            return "#ea580c";
+
+        case "Automotive":
+            return "#facc15";
+
+        case "Hardware":
+            return "#6b7280";
+
+        case "Electronics":
+            return "#7c3aed";
+
+        case "Household":
+            return "#06b6d4";
+
+        default:
+            return "#374151";
+    }
+}
 
 const shelvesEl =
 document.getElementById("shelves");
@@ -361,10 +410,11 @@ async function loadBins(){
     (data || []).forEach(bin => {
 
         bins[bin.id] = {
-            name: bin.name || "",
-            contents: bin.contents || "",
-            updated_at: bin.updated_at || ""
-        };
+    name: bin.name || "",
+    category: bin.category || "",
+    contents: bin.contents || "",
+    updated_at: bin.updated_at || ""
+};
 
     });
 }
@@ -474,6 +524,9 @@ function openBin(id){
     document.getElementById("binName")
         .value = bin.name || "";
 
+    document.getElementById("binCategory")
+    .value = bin.category || "";
+
     document.getElementById("binContents")
         .value = bin.contents || "";
 
@@ -516,6 +569,8 @@ async function saveCurrentBin(){
             name:
                 document.getElementById("binName").value,
             contents:
+                    category:
+        document.getElementById("binCategory").value,
                 document.getElementById("binContents").value,
             updated_at: now
         });
