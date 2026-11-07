@@ -185,11 +185,36 @@ button:hover{
 <header>
     <h1>Papi's Bin Finder Program</h1>
 
+    <div id="account" class="hidden">
+        <span id="accountEmail"></span>
+        <button id="signOut">Sign Out</button>
+    </div>
+</header>
+
+<div id="authPanel" class="panel">
+    <h2>Sign in or create an account</h2>
+    <p>Each account has its own private inventory. To share an inventory, sign in to the same account.</p>
+    <form id="authForm">
+        <label>Email <input id="email" type="email" autocomplete="email" required></label>
+        <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Sign In</button>
+        <button id="signUp" type="button">Sign Up</button>
+    </form>
+    <p id="authStatus" role="status">Checking session…</p>
+</div>
+
+<div id="loadError" class="panel hidden" role="alert">
+    <p id="loadErrorMessage"></p>
+    <button id="retryLoad">Retry</button>
+</div>
+
+<main id="app" class="hidden">
+<div class="panel">
     <input
         id="search"
         placeholder="Search bins..."
     >
-</header>
+</div>
 
 <div class="panel">
 
@@ -274,6 +299,8 @@ button:hover{
 
 </div>
 
+</main>
+
 <script>
 
 const SUPABASE_URL =
@@ -294,6 +321,78 @@ let settings = {
 
 let bins = {};
 let currentBin = null;
+let currentUser = null;
+let sessionVersion = 0;
+let loaded = false;
+
+const authPanel = document.getElementById("authPanel");
+const authStatus = document.getElementById("authStatus");
+const app = document.getElementById("app");
+const account = document.getElementById("account");
+const loadError = document.getElementById("loadError");
+
+function isCurrent(userId, version){
+    return currentUser?.id === userId && sessionVersion === version;
+}
+
+function clearInventory(){
+    loaded = false;
+    bins = {};
+    settings = { totalBins: 42, binsPerShelf: 6 };
+    currentBin = null;
+    app.classList.add("hidden");
+    loadError.classList.add("hidden");
+    document.getElementById("modal").classList.add("hidden");
+    document.getElementById("shelves").innerHTML = "";
+    document.getElementById("search").value = "";
+    document.getElementById("binName").value = "";
+    document.getElementById("binCategory").value = "";
+    document.getElementById("binContents").value = "";
+    document.getElementById("qrcode").innerHTML = "";
+}
+
+function escapeHtml(value){
+    return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;",
+        '"': "&quot;", "'": "&#39;"
+    })[char]);
+}
+
+async function authenticate(signUp){
+    authStatus.textContent = signUp ? "Creating account…" : "Signing in…";
+    try {
+        const credentials = {
+            email: document.getElementById("email").value.trim(),
+            password: document.getElementById("password").value
+        };
+        const { data, error } = signUp
+            ? await db.auth.signUp(credentials)
+            : await db.auth.signInWithPassword(credentials);
+        if(error) throw error;
+        document.getElementById("password").value = "";
+        if(signUp && !data.session){
+            authStatus.textContent = "If signup is available, check your email for a confirmation link, then sign in.";
+        }
+    } catch(error) {
+        authStatus.textContent = error.message || "Authentication failed. Please try again.";
+    }
+}
+
+document.getElementById("authForm").addEventListener("submit", event => {
+    event.preventDefault();
+    authenticate(false);
+});
+document.getElementById("signUp").addEventListener("click", () => {
+    if(document.getElementById("authForm").reportValidity()) authenticate(true);
+});
+document.getElementById("signOut").addEventListener("click", async () => {
+    try {
+        const { error } = await db.auth.signOut();
+        if(error) throw error;
+    } catch(error) {
+        alert(error.message || "Sign out failed. Please try again.");
+    }
+});
 
     function getCategoryColor(category){
 
@@ -331,85 +430,70 @@ let currentBin = null;
 const shelvesEl =
 document.getElementById("shelves");
 
-async function loadSettings(){
+async function loadSettings(userId){
 
     const { data, error } = await db
         .from("settings")
-        .select("*")
-        .eq("id",1)
+        .select("total_bins,bins_per_shelf")
+        .eq("user_id",userId)
         .maybeSingle();
 
-    if(error){
-        console.error(error);
-    }
-
-    if(data){
-        settings.totalBins =
-            data.total_bins ?? 42;
-
-        settings.binsPerShelf =
-            data.bins_per_shelf ?? 6;
-    }
-    else{
-        settings.totalBins = 42;
-        settings.binsPerShelf = 6;
-    }
-
-    document.getElementById("totalBins").value =
-        settings.totalBins;
-
-    document.getElementById("binsPerShelf").value =
-        settings.binsPerShelf;
+    if(error) throw error;
+    return {
+        totalBins: data?.total_bins ?? 42,
+        binsPerShelf: data?.bins_per_shelf ?? 6
+    };
 }
 
 async function saveLayout(){
 
-    settings.totalBins =
-        parseInt(
-            document.getElementById("totalBins").value
-        ) || 42;
-
-    settings.binsPerShelf =
-        parseInt(
-            document.getElementById("binsPerShelf").value
-        ) || 6;
-
-    const { error } =
-    await db
-        .from("settings")
-        .upsert({
-            id: 1,
-            total_bins: settings.totalBins,
-            bins_per_shelf: settings.binsPerShelf
-        });
-
-    if(error){
-        console.error(error);
-        alert(error.message);
+    if(!currentUser || !loaded) return;
+    const userId = currentUser.id;
+    const version = sessionVersion;
+    const totalBins = Number(document.getElementById("totalBins").value);
+    const binsPerShelf = Number(document.getElementById("binsPerShelf").value);
+    if(!Number.isInteger(totalBins) || totalBins < 1 || totalBins > 500 ||
+       !Number.isInteger(binsPerShelf) || binsPerShelf < 1 || binsPerShelf > 50){
+        alert("Enter 1–500 total bins and 1–50 bins per shelf.");
         return;
     }
 
-    renderBins();
+    try {
+    const { error } = await db
+        .from("settings")
+        .upsert({
+            id: 1,
+            user_id: userId,
+            total_bins: totalBins,
+            bins_per_shelf: binsPerShelf
+        }, { onConflict: "user_id" });
+
+    if(error) throw error;
+    if(!isCurrent(userId, version)) return;
+
+    settings = { totalBins, binsPerShelf };
+    renderBins(document.getElementById("search").value);
     alert("Layout Saved");
+    } catch(error) {
+        if(isCurrent(userId, version)) alert(error.message || "Could not save layout.");
+    }
 }
 
-async function loadBins(){
+async function loadBins(userId){
 
     const { data, error } =
     await db
         .from("bins")
-        .select("*");
+        .select("id,name,category,contents,updated_at")
+        .eq("user_id",userId);
 
-    if(error){
-        console.error(error);
-        return;
-    }
+    if(error) throw error;
 
-    bins = {};
+    const result = {};
 
     (data || []).forEach(bin => {
 
-        bins[bin.id] = {
+        result[bin.id] = {
     name: bin.name || "",
     category: bin.category || "",
     contents: bin.contents || "",
@@ -417,6 +501,7 @@ async function loadBins(){
 };
 
     });
+    return result;
 }
 
 function renderBins(filter=""){
@@ -491,9 +576,9 @@ getCategoryColor(bin.category);
         card.innerHTML = `
     <strong>${binId}</strong>
     <br>
-    <small>${bin.name || "Empty"}</small>
+    <small>${escapeHtml(bin.name || "Empty")}</small>
     <br>
-    <small>${bin.category || ""}</small>
+    <small>${escapeHtml(bin.category || "")}</small>
 `;
 
         card.addEventListener(
@@ -507,6 +592,7 @@ getCategoryColor(bin.category);
 
 function openBin(id){
 
+    if(!currentUser || !loaded) return;
     currentBin = id;
 
     const bin =
@@ -555,17 +641,22 @@ new QRCode(qrDiv,{
 
 async function saveCurrentBin(){
 
-    if(!currentBin) return;
+    if(!currentBin || !currentUser || !loaded) return;
+    const userId = currentUser.id;
+    const version = sessionVersion;
+    const binId = currentBin;
 
     const now =
     new Date().toISOString();
 
+    try {
     const { error } =
     await db
         .from("bins")
 
     .upsert({
-    id: currentBin,
+    id: binId,
+    user_id: userId,
 
     name:
         document.getElementById("binName").value,
@@ -577,16 +668,13 @@ async function saveCurrentBin(){
         document.getElementById("binContents").value,
 
     updated_at: now
-});
+}, { onConflict: "user_id,id" });
 
-        
-    if(error){
-        console.error(error);
-        alert(error.message);
-        return;
-    }
+    if(error) throw error;
+    const refreshedBins = await loadBins(userId);
+    if(!isCurrent(userId, version)) return;
 
-    await loadBins();
+    bins = refreshedBins;
 
     renderBins(
         document.getElementById("search").value
@@ -604,7 +692,9 @@ async function saveCurrentBin(){
 .getElementById("modal")
 .classList
 .add("hidden");
-    
+    } catch(error) {
+        if(isCurrent(userId, version)) alert(error.message || "Could not save or reload bins.");
+    }
 }
 
 document
@@ -628,34 +718,65 @@ document
     e => renderBins(e.target.value)
 );
 
-async function init(){
+async function loadInventory(userId, version){
+    clearInventory();
+    try {
+        const [newSettings, newBins] = await Promise.all([
+            loadSettings(userId), loadBins(userId)
+        ]);
+        if(!isCurrent(userId, version)) return;
+        if(!Number.isInteger(newSettings.totalBins) || newSettings.totalBins < 1 || newSettings.totalBins > 500 ||
+           !Number.isInteger(newSettings.binsPerShelf) || newSettings.binsPerShelf < 1 || newSettings.binsPerShelf > 50){
+            throw new Error("Invalid saved layout. Contact the database owner.");
+        }
+        settings = newSettings;
+        bins = newBins;
+        document.getElementById("totalBins").value = settings.totalBins;
+        document.getElementById("binsPerShelf").value = settings.binsPerShelf;
+        loaded = true;
+        renderBins();
+        app.classList.remove("hidden");
 
-    console.log("Starting app...");
-
-    await loadSettings();
-    await loadBins();
-
-    renderBins();
-
-    const params =
-new URLSearchParams(window.location.search);
-
-const binFromQr =
-params.get("bin");
-
-if(binFromQr){
-
-    setTimeout(() => {
-
-        openBin(binFromQr);
-
-    }, 500);
+        const binFromQr = new URLSearchParams(window.location.search).get("bin");
+        if(binFromQr && Array.from({length: settings.totalBins}, (_, i) =>
+            `BIN${String(i + 1).padStart(2,"0")}`).includes(binFromQr)){
+            openBin(binFromQr);
+        }
+    } catch(error) {
+        if(!isCurrent(userId, version)) return;
+        document.getElementById("loadErrorMessage").textContent =
+            "Could not load your inventory: " + (error.message || "Please try again.");
+        loadError.classList.remove("hidden");
+    }
 }
 
-    console.log("App loaded");
-}
+document.getElementById("retryLoad").addEventListener("click", () => {
+    if(currentUser) loadInventory(currentUser.id, ++sessionVersion);
+});
 
-init().catch(console.error);
+db.auth.onAuthStateChange((event, session) => {
+    const user = session?.user || null;
+    if(user && currentUser?.id === user.id) return;
+    currentUser = user;
+    const version = ++sessionVersion;
+    clearInventory();
+    account.classList.toggle("hidden", !user);
+    authPanel.classList.toggle("hidden", !!user);
+    document.getElementById("accountEmail").textContent = user?.email || "";
+    if(user){
+        setTimeout(() => {
+            if(isCurrent(user.id, version)) loadInventory(user.id, version);
+        }, 0);
+    } else {
+        authStatus.textContent = "Sign in to access your inventory.";
+    }
+});
+
+db.auth.getSession().then(({ error }) => {
+    if(error && !currentUser) authStatus.textContent = error.message;
+}).catch(error => {
+    if(!currentUser) authStatus.textContent = error.message || "Could not restore session.";
+});
 
 document
 .getElementById("closeModal")
@@ -724,7 +845,7 @@ document
 
             <h1>${currentBin}</h1>
 
-            <h2>${binName}</h2>
+            <h2>${escapeHtml(binName)}</h2>
 
             <img src="${qrImage}">
 
@@ -820,7 +941,7 @@ document
             </div>
 
             <div class="bin-name">
-                ${name}
+                ${escapeHtml(name)}
             </div>
 
             <img
