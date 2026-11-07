@@ -17,10 +17,10 @@ deploy the new client before the database is migrated and legacy data claimed.
    and triggers, which this setup does not audit.
 2. In Supabase Auth, enable email/password sign-in. Configure the site URL and
    allowed redirect URLs for your deployed app, and email delivery/confirmation
-   as appropriate. Create Dad's account in Authentication > Users or sign up
-   through the app once it is deployed. If email confirmation is enabled, confirm
-   the email before signing in. Copy Dad's UUID from Authentication > Users;
-   verify it belongs to the intended account.
+   as appropriate. Create Dad's account in Authentication > Users before
+   migrating. If email confirmation is enabled, confirm the email before signing
+   in. Copy Dad's UUID from Authentication > Users; verify it belongs to the
+   intended account.
 3. Run `supabase-setup.sql` in the Supabase SQL Editor as the project owner. It
    creates missing tables or migrates the existing tables in one transaction,
    replaces existing policies, enables RLS, and removes `anon`/public table
